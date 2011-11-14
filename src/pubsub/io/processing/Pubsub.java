@@ -50,7 +50,7 @@ import processing.core.PApplet;
 
 public class Pubsub implements WebSocketListener {
 
-	private static final boolean DEBUG = false;
+	private static final boolean DEBUG = true;
 
 	public final static String VERSION = "##version##";
 
@@ -63,8 +63,6 @@ public class Pubsub implements WebSocketListener {
 
 	private WebSocket mWebSocket;
 	private boolean connected = false;
-
-	private Method onSubMessage;
 
 	private HashMap<Integer, Method> callbacks;
 
@@ -79,14 +77,7 @@ public class Pubsub implements WebSocketListener {
 		myParent = theParent;
 		welcome();
 
-		try {
-			onSubMessage = theParent.getClass().getMethod("onSubMessage",
-					new Class[] { Pubsub.class });
-		} catch (Exception e) {
-			if (DEBUG)
-				System.out
-						.println("Method onSubMessage missing, did you forget to add it?");
-		}
+		callbacks = new HashMap<Integer, Method>();
 	}
 
 	public void dispose() {
@@ -133,7 +124,8 @@ public class Pubsub implements WebSocketListener {
 		if (!isConnected()) {
 			try {
 				mWebSocket = new WebSocket(URI.create("ws://" + mHost + ":"
-						+ mPort), WebSocket.Draft.DRAFT75, "sample");
+						+ mPort + "/" + mSub), WebSocket.Draft.DRAFT75,
+						"sample");
 				mWebSocket.addWebSocketListener(this);
 				mWebSocket.connect();
 			} catch (IOException e) {
@@ -163,21 +155,21 @@ public class Pubsub implements WebSocketListener {
 	 * @param json_filter
 	 * @param handler_callback
 	 */
-	public void subscribe(JSONObject json_filter, String method_callback) {
-		int callback_id = 0;
+	public int subscribe(JSONObject json_filter, String method_callback) {
+		int callback_id = callbacks.size() + 1;
+
+		System.out.println("dEBUG: id = " + callback_id + "  method = "
+				+ method_callback);
 
 		// Create the method (TODO add some sort of check that it doesn't exist
 		// already)
 		Method m = null;
 		try {
 			m = myParent.getClass().getMethod(method_callback,
-					new Class[] { Pubsub.class });
+					new Class[] { String.class });
 		} catch (Exception e) {
 			if (DEBUG)
-				System.out
-						.println("Faild to create "
-								+ method_callback
-								+ ". You'll probably not recieve anything from the hub, dude.");
+				System.out.println(e.getMessage());
 		}
 
 		// Add the callback
@@ -193,6 +185,8 @@ public class Pubsub implements WebSocketListener {
 
 		// Send the message to the server to subscribe
 		mWebSocket.send(PubsubParser.subscribe(json_filter, callback_id));
+
+		return callback_id;
 	}
 
 	/**
@@ -213,10 +207,6 @@ public class Pubsub implements WebSocketListener {
 		mWebSocket.send(PubsubParser.publish(json_doc));
 	}
 
-	private void send(String msg) {
-		mWebSocket.send(msg);
-	}
-
 	/**
 	 * Are we connected already?
 	 * 
@@ -235,10 +225,13 @@ public class Pubsub implements WebSocketListener {
 		return VERSION;
 	}
 
+	/**
+	 * React to messages...
+	 */
 	@Override
 	public void onMessage(JSONObject msg) {
-		// Attempt to find the proper callback method, and if found fire it with
-		// the json doc attached.
+		if (DEBUG)
+			System.out.println(msg.toJSONString());
 
 		int callback_id = (Integer) msg.get("id");
 		JSONObject doc = (JSONObject) msg.get("doc");
@@ -259,20 +252,14 @@ public class Pubsub implements WebSocketListener {
 
 	@Override
 	public void onOpen() {
-		// TODO Auto-generated method stub
-
 	}
 
 	@Override
 	public void onClose() {
-		// TODO Auto-generated method stub
-
 	}
 
 	@Override
 	public void onError(JSONObject msg) {
-		// TODO Auto-generated method stub
-
 	}
 
 }

@@ -243,6 +243,8 @@ public class WebSocket implements Runnable {
 		this.buffer = ByteBuffer.allocate(1);
 
 		this.instance = this;
+
+		WebSocketListeners = new Vector();
 	}
 
 	public void addWebSocketListener(WebSocketListener wsl) {
@@ -253,9 +255,7 @@ public class WebSocket implements Runnable {
 	}
 
 	private void createWebSocketEvent(int event_type, JSONObject msg) {
-		WebSocketEvent wse;
-
-		wse = new WebSocketEvent(this, event_type, msg);
+		WebSocketEvent wse = new WebSocketEvent(this, event_type, msg);
 
 		Vector vtemp = (Vector) WebSocketListeners.clone();
 		for (int x = 0; x < vtemp.size(); x++) {
@@ -382,7 +382,6 @@ public class WebSocket implements Runnable {
 		try {
 			obj = parser.parse(msg);
 		} catch (ParseException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		JSONObject json_obj = (JSONObject) obj;
