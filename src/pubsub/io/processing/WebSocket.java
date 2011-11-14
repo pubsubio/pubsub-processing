@@ -40,8 +40,14 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Iterator;
 import java.util.Random;
 import java.util.Set;
+import java.util.Vector;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 
 /**
  * The <tt>WebSocket</tt> is an implementation of WebSocket Client API, and
@@ -143,8 +149,8 @@ public class WebSocket implements Runnable {
 	 */
 	private Draft draft;
 	/**
-	 * The <tt>SocketChannel</tt> instance to use for this server connection. This
-	 * is used to read and write data to.
+	 * The <tt>SocketChannel</tt> instance to use for this server connection.
+	 * This is used to read and write data to.
 	 */
 	private SocketChannel socketChannel;
 	/**
@@ -156,12 +162,13 @@ public class WebSocket implements Runnable {
 	 */
 	private boolean running;
 	/**
-	 * Internally used to determine whether to recieve data as part of the remote
-	 * handshake, or as part of a text frame.
+	 * Internally used to determine whether to recieve data as part of the
+	 * remote handshake, or as part of a text frame.
 	 */
 	private boolean handshakeComplete;
 	/**
-	 * The 1-byte buffer reused throughout the WebSocket connection to read data.
+	 * The 1-byte buffer reused throughout the WebSocket connection to read
+	 * data.
 	 */
 	private ByteBuffer buffer;
 	/**
@@ -177,8 +184,8 @@ public class WebSocket implements Runnable {
 	 */
 	private BlockingQueue<ByteBuffer> bufferQueue;
 	/**
-	 * Lock object to ensure that data is sent from the bufferQueue in the proper
-	 * order
+	 * Lock object to ensure that data is sent from the bufferQueue in the
+	 * proper order
 	 */
 	private Object bufferQueueMutex = new Object();
 	/**
@@ -200,6 +207,8 @@ public class WebSocket implements Runnable {
 
 	private final WebSocket instance;
 
+	private Vector WebSocketListeners;
+
 	/**
 	 * Constructor.
 	 * 
@@ -207,13 +216,13 @@ public class WebSocket implements Runnable {
 	 * {@link WebSocketFactory} only.
 	 * 
 	 * @param appView
-	 *          {@link android.webkit.WebView}
+	 *            {@link android.webkit.WebView}
 	 * @param uri
-	 *          websocket server {@link URI}
+	 *            websocket server {@link URI}
 	 * @param draft
-	 *          websocket server {@link Draft} implementation (75/76)
+	 *            websocket server {@link Draft} implementation (75/76)
 	 * @param id
-	 *          unique id for this instance
+	 *            unique id for this instance
 	 */
 	protected WebSocket(URI uri, Draft draft, String id) {
 		this.uri = uri;
@@ -234,6 +243,41 @@ public class WebSocket implements Runnable {
 		this.buffer = ByteBuffer.allocate(1);
 
 		this.instance = this;
+	}
+
+	public void addWebSocketListener(WebSocketListener wsl) {
+		// add main frame to vector of listeners
+		if (WebSocketListeners.contains(wsl))
+			return;
+		WebSocketListeners.addElement(wsl);
+	}
+
+	private void createWebSocketEvent(int event_type, JSONObject msg) {
+		WebSocketEvent wse;
+
+		wse = new WebSocketEvent(this, event_type, msg);
+
+		Vector vtemp = (Vector) WebSocketListeners.clone();
+		for (int x = 0; x < vtemp.size(); x++) {
+			WebSocketListener target = null;
+			target = (WebSocketListener) vtemp.elementAt(x);
+
+			switch (event_type) {
+			case WebSocketEvent.ON_CLOSE:
+				target.onClose();
+				break;
+			case WebSocketEvent.ON_ERROR:
+				target.onError(msg);
+				break;
+			case WebSocketEvent.ON_MESSAGE:
+				target.onMessage(msg);
+				break;
+			case WebSocketEvent.ON_OPEN:
+				target.onOpen();
+				break;
+			}
+		}
+
 	}
 
 	// //////////////////////////////////////////////////////////////////////////////////////
@@ -263,7 +307,8 @@ public class WebSocket implements Runnable {
 
 		selector = Selector.open();
 		socketChannel.register(selector, SelectionKey.OP_CONNECT);
-		System.out.println("Starting a new thread to manage data reading/writing");
+		System.out
+				.println("Starting a new thread to manage data reading/writing");
 
 		Thread th = new Thread(this);
 		th.start();
@@ -306,7 +351,7 @@ public class WebSocket implements Runnable {
 	 * Sends <var>text</var> to server
 	 * 
 	 * @param text
-	 *          String to send to server
+	 *            String to send to server
 	 */
 	public void send(final String text) {
 		new Thread(new Runnable() {
@@ -329,22 +374,35 @@ public class WebSocket implements Runnable {
 	 * Called when an entire text frame has been received.
 	 * 
 	 * @param msg
-	 *          Message from websocket server
+	 *            Message from websocket server
 	 */
 	public void onMessage(final String msg) {
-		System.out.println("onMessage: " + msg);
+		JSONParser parser = new JSONParser();
+		Object obj = null;
+		try {
+			obj = parser.parse(msg);
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		JSONObject json_obj = (JSONObject) obj;
+
+		createWebSocketEvent(WebSocketEvent.ON_MESSAGE, json_obj);
 	}
 
 	public void onOpen() {
-		System.out.println("onOpen()");
+		createWebSocketEvent(WebSocketEvent.ON_OPEN, null);
 	}
 
 	public void onClose() {
-		System.out.println("onClose()");
+		createWebSocketEvent(WebSocketEvent.ON_CLOSE, null);
 	}
 
 	public void onError(final Throwable t) {
-		System.out.println(t.getMessage());
+		JSONObject root = new JSONObject();
+		root.put("error", t.getMessage());
+
+		createWebSocketEvent(WebSocketEvent.ON_ERROR, root);
 	}
 
 	public String getId() {
@@ -359,18 +417,19 @@ public class WebSocket implements Runnable {
 	}
 
 	/**
-	 * Builds text for javascript engine to invoke proper event method with proper
-	 * data.
+	 * Builds text for javascript engine to invoke proper event method with
+	 * proper data.
 	 * 
 	 * @param event
-	 *          websocket event (onOpen, onMessage etc.)
+	 *            websocket event (onOpen, onMessage etc.)
 	 * @param msg
-	 *          Text message received from websocket server
+	 *            Text message received from websocket server
 	 * @return
 	 */
 	private String buildJavaScriptData(String event, String msg) {
-		String _d = "javascript:WebSocket." + event + "(" + "{" + "\"_target\":\""
-				+ id + "\"," + "\"data\":'" + msg + "'" + "}" + ")";
+		String _d = "javascript:WebSocket." + event + "(" + "{"
+				+ "\"_target\":\"" + id + "\"," + "\"data\":'" + msg + "'"
+				+ "}" + ")";
 		return _d;
 	}
 
@@ -384,7 +443,8 @@ public class WebSocket implements Runnable {
 			throw new NotYetConnectedException();
 		}
 		if (text == null) {
-			throw new NullPointerException("Cannot send 'null' data to a WebSocket.");
+			throw new NullPointerException(
+					"Cannot send 'null' data to a WebSocket.");
 		}
 
 		// Get 'text' into a WebSocket "frame" of bytes
@@ -404,8 +464,10 @@ public class WebSocket implements Runnable {
 		// If we didn't get it all sent, add it to the buffer of buffers
 		if (b.remaining() > 0) {
 			if (!this.bufferQueue.offer(b)) {
-				throw new IOException("Buffers are full, message could not be sent to"
-						+ this.socketChannel.socket().getRemoteSocketAddress());
+				throw new IOException(
+						"Buffers are full, message could not be sent to"
+								+ this.socketChannel.socket()
+										.getRemoteSocketAddress());
 			}
 			return false;
 		}
@@ -449,9 +511,9 @@ public class WebSocket implements Runnable {
 
 		String host = uri.getHost() + (port != DEFAULT_PORT ? ":" + port : "");
 		String origin = "*"; // TODO: Make 'origin' configurable
-		String request = "GET " + path + " HTTP/1.1\r\n" + "Upgrade: WebSocket\r\n"
-				+ "Connection: Upgrade\r\n" + "Host: " + host + "\r\n" + "Origin: "
-				+ origin + "\r\n";
+		String request = "GET " + path + " HTTP/1.1\r\n"
+				+ "Upgrade: WebSocket\r\n" + "Connection: Upgrade\r\n"
+				+ "Host: " + host + "\r\n" + "Origin: " + origin + "\r\n";
 
 		// Add random keys for Draft76
 		if (this.draft == Draft.DRAFT76) {
@@ -470,8 +532,8 @@ public class WebSocket implements Runnable {
 			System.arraycopy(bRequest, 0, bToSend, 0, bRequest.length);
 
 			// Now tack on key3 bytes
-			System
-					.arraycopy(this.key3, 0, bToSend, bRequest.length, this.key3.length);
+			System.arraycopy(this.key3, 0, bToSend, bRequest.length,
+					this.key3.length);
 
 			// Now we can send all keys as a single frame
 			_write(bToSend);
@@ -544,8 +606,8 @@ public class WebSocket implements Runnable {
 
 		} else { // Regular frame data, add to current frame buffer
 			ByteBuffer frame = ByteBuffer
-					.allocate((this.currentFrame != null ? this.currentFrame.capacity()
-							: 0) + this.buffer.capacity());
+					.allocate((this.currentFrame != null ? this.currentFrame
+							.capacity() : 0) + this.buffer.capacity());
 			if (this.currentFrame != null) {
 				this.currentFrame.rewind();
 				frame.put(this.currentFrame);
@@ -573,9 +635,10 @@ public class WebSocket implements Runnable {
 				&& h[h.length - 19] == DATA_LF && h[h.length - 18] == DATA_CR && h[h.length - 17] == DATA_LF)) {
 			_readHandshake(new byte[] { h[h.length - 16], h[h.length - 15],
 					h[h.length - 14], h[h.length - 13], h[h.length - 12],
-					h[h.length - 11], h[h.length - 10], h[h.length - 9], h[h.length - 8],
-					h[h.length - 7], h[h.length - 6], h[h.length - 5], h[h.length - 4],
-					h[h.length - 3], h[h.length - 2], h[h.length - 1] });
+					h[h.length - 11], h[h.length - 10], h[h.length - 9],
+					h[h.length - 8], h[h.length - 7], h[h.length - 6],
+					h[h.length - 5], h[h.length - 4], h[h.length - 3],
+					h[h.length - 2], h[h.length - 1] });
 
 			// If the ByteBuffer contains 8 random bytes,ends with
 			// 0x0D 0x0A 0x0D 0x0A (or two CRLFs), and the response
@@ -586,15 +649,16 @@ public class WebSocket implements Runnable {
 				&& new String(this.remoteHandshake.array(), UTF8_CHARSET)
 						.contains("Sec-WebSocket-Key1")) {// ************************
 			_readHandshake(new byte[] { h[h.length - 8], h[h.length - 7],
-					h[h.length - 6], h[h.length - 5], h[h.length - 4], h[h.length - 3],
-					h[h.length - 2], h[h.length - 1] });
+					h[h.length - 6], h[h.length - 5], h[h.length - 4],
+					h[h.length - 3], h[h.length - 2], h[h.length - 1] });
 
 			// Consider Draft 75, and the Flash Security Policy
 			// Request edge-case.
 		} else if ((h.length >= 4 && h[h.length - 4] == DATA_CR
 				&& h[h.length - 3] == DATA_LF && h[h.length - 2] == DATA_CR && h[h.length - 1] == DATA_LF)
 				&& !(new String(this.remoteHandshake.array(), UTF8_CHARSET)
-						.contains("Sec")) || (h.length == 23 && h[h.length - 1] == 0)) {
+						.contains("Sec"))
+				|| (h.length == 23 && h[h.length - 1] == 0)) {
 			_readHandshake(null);
 		}
 	}
@@ -616,12 +680,13 @@ public class WebSocket implements Runnable {
 			byte[] challenge = new byte[] { (byte) (this.number1 >> 24),
 					(byte) ((this.number1 << 8) >> 24),
 					(byte) ((this.number1 << 16) >> 24),
-					(byte) ((this.number1 << 24) >> 24), (byte) (this.number2 >> 24),
+					(byte) ((this.number1 << 24) >> 24),
+					(byte) (this.number2 >> 24),
 					(byte) ((this.number2 << 8) >> 24),
 					(byte) ((this.number2 << 16) >> 24),
-					(byte) ((this.number2 << 24) >> 24), this.key3[0], this.key3[1],
-					this.key3[2], this.key3[3], this.key3[4], this.key3[5], this.key3[6],
-					this.key3[7] };
+					(byte) ((this.number2 << 24) >> 24), this.key3[0],
+					this.key3[1], this.key3[2], this.key3[3], this.key3[4],
+					this.key3[5], this.key3[6], this.key3[7] };
 			MessageDigest md5 = MessageDigest.getInstance("MD5");
 			byte[] expected = md5.digest(challenge);
 			for (int i = 0; i < handShakeBody.length; i++) {

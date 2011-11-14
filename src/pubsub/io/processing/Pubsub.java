@@ -26,8 +26,12 @@
 package pubsub.io.processing;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URI;
+import java.util.HashMap;
+
+import org.json.simple.JSONObject;
 
 import processing.core.PApplet;
 
@@ -44,7 +48,7 @@ import processing.core.PApplet;
  * 
  */
 
-public class Pubsub implements Runnable {
+public class Pubsub implements WebSocketListener {
 
 	private static final boolean DEBUG = false;
 
@@ -61,6 +65,8 @@ public class Pubsub implements Runnable {
 	private boolean connected = false;
 
 	private Method onSubMessage;
+
+	private HashMap<Integer, Method> callbacks;
 
 	/**
 	 * a Constructor, usually called in the setup() method in your sketch to
@@ -81,6 +87,10 @@ public class Pubsub implements Runnable {
 				System.out
 						.println("Method onSubMessage missing, did you forget to add it?");
 		}
+	}
+
+	public void dispose() {
+		mWebSocket.close();
 	}
 
 	private void welcome() {
@@ -113,7 +123,8 @@ public class Pubsub implements Runnable {
 	 */
 	public void connect(String host, String port, String sub) {
 		if (DEBUG)
-			System.out.println("connect(" + host + ", " + port + ", " + sub + ")");
+			System.out.println("connect(" + host + ", " + port + ", " + sub
+					+ ")");
 
 		mHost = host;
 		mPort = port;
@@ -121,8 +132,9 @@ public class Pubsub implements Runnable {
 
 		if (!isConnected()) {
 			try {
-				mWebSocket = new WebSocket(URI.create("ws://" + mHost + ":" + mPort),
-						WebSocket.Draft.DRAFT75, "sample");
+				mWebSocket = new WebSocket(URI.create("ws://" + mHost + ":"
+						+ mPort), WebSocket.Draft.DRAFT75, "sample");
+				mWebSocket.addWebSocketListener(this);
 				mWebSocket.connect();
 			} catch (IOException e) {
 				e.printStackTrace();
@@ -134,7 +146,74 @@ public class Pubsub implements Runnable {
 		}
 	}
 
-	public void send(String msg) {
+	/**
+	 * Hook up to a specific sub.
+	 * 
+	 * @param sub
+	 */
+	public void sub(String sub) {
+		mWebSocket.send(PubsubParser.sub(sub));
+	}
+
+	/**
+	 * Subscribe to a filter, with a specified handler_callback, on the
+	 * connected sub. The handler_callback should be a declared constant, and it
+	 * should be used in the Handler of your activity!
+	 * 
+	 * @param json_filter
+	 * @param handler_callback
+	 */
+	public void subscribe(JSONObject json_filter, String method_callback) {
+		int callback_id = 0;
+
+		// Create the method (TODO add some sort of check that it doesn't exist
+		// already)
+		Method m = null;
+		try {
+			m = myParent.getClass().getMethod(method_callback,
+					new Class[] { Pubsub.class });
+		} catch (Exception e) {
+			if (DEBUG)
+				System.out
+						.println("Faild to create "
+								+ method_callback
+								+ ". You'll probably not recieve anything from the hub, dude.");
+		}
+
+		// Add the callback
+		if (m != null) {
+			callbacks.put(callback_id, m);
+		} else {
+			if (DEBUG)
+				System.out
+						.println("Faild to create "
+								+ method_callback
+								+ ". You'll probably not recieve anything from the hub, dude.");
+		}
+
+		// Send the message to the server to subscribe
+		mWebSocket.send(PubsubParser.subscribe(json_filter, callback_id));
+	}
+
+	/**
+	 * Unsubscribe the specified handler_callback.
+	 * 
+	 * @param handler_callback
+	 */
+	public void unsubscribe(Integer handler_callback) {
+		mWebSocket.send(PubsubParser.unsubscribe(handler_callback));
+	}
+
+	/**
+	 * Publish a document to the connected sub.
+	 * 
+	 * @param doc
+	 */
+	public void publish(JSONObject json_doc) {
+		mWebSocket.send(PubsubParser.publish(json_doc));
+	}
+
+	private void send(String msg) {
 		mWebSocket.send(msg);
 	}
 
@@ -157,7 +236,42 @@ public class Pubsub implements Runnable {
 	}
 
 	@Override
-	public void run() {
+	public void onMessage(JSONObject msg) {
+		// Attempt to find the proper callback method, and if found fire it with
+		// the json doc attached.
+
+		int callback_id = (Integer) msg.get("id");
+		JSONObject doc = (JSONObject) msg.get("doc");
+
+		Method eventMethod = callbacks.get(callback_id);
+		if (eventMethod != null) {
+			try {
+				eventMethod.invoke(myParent, doc);
+			} catch (IllegalArgumentException e) {
+				e.printStackTrace();
+			} catch (IllegalAccessException e) {
+				e.printStackTrace();
+			} catch (InvocationTargetException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+	@Override
+	public void onOpen() {
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public void onClose() {
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public void onError(JSONObject msg) {
+		// TODO Auto-generated method stub
 
 	}
 
