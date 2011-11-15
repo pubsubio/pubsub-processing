@@ -382,11 +382,15 @@ public class WebSocket implements Runnable {
 		try {
 			obj = parser.parse(msg);
 		} catch (ParseException e) {
-			e.printStackTrace();
+			// e.printStackTrace();
 		}
-		JSONObject json_obj = (JSONObject) obj;
 
-		createWebSocketEvent(WebSocketEvent.ON_MESSAGE, json_obj);
+		if (obj != null) {
+			JSONObject json_obj = (JSONObject) obj;
+			createWebSocketEvent(WebSocketEvent.ON_MESSAGE, json_obj);
+		} else {
+			System.out.println("non json message: " + msg);
+		}
 	}
 
 	public void onOpen() {
@@ -399,7 +403,7 @@ public class WebSocket implements Runnable {
 
 	public void onError(final Throwable t) {
 		JSONObject root = new JSONObject();
-		root.put("error", t.getMessage());
+		root.put("error", t);
 
 		createWebSocketEvent(WebSocketEvent.ON_ERROR, root);
 	}
@@ -512,8 +516,8 @@ public class WebSocket implements Runnable {
 		String origin = "*"; // TODO: Make 'origin' configurable
 		String request = "GET " + path + " HTTP/1.1\r\n"
 				+ "Upgrade: WebSocket\r\n" + "Connection: Upgrade\r\n"
-				+ "Host: " + host + "\r\n" + "Origin: " + origin + "\r\n";
-
+				+ "Host: " + host + "\r\n" + "Origin: " + origin + "\r\n";		
+		
 		// Add random keys for Draft76
 		if (this.draft == Draft.DRAFT76) {
 			request += "Sec-WebSocket-Key1: " + this._randomKey() + "\r\n";

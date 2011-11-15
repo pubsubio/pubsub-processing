@@ -51,7 +51,7 @@ import processing.core.PApplet;
 public class Pubsub implements WebSocketListener {
 
 	private static final boolean DEBUG = true;
-
+	private static final String DEBUGTAG = "Pubsu-processing: ";
 	public final static String VERSION = "##version##";
 
 	// myParent is a reference to the parent sketch
@@ -63,6 +63,8 @@ public class Pubsub implements WebSocketListener {
 
 	private WebSocket mWebSocket;
 	private boolean connected = false;
+
+	private Method onOpen;
 
 	private HashMap<Integer, Method> callbacks;
 
@@ -78,6 +80,15 @@ public class Pubsub implements WebSocketListener {
 		welcome();
 
 		callbacks = new HashMap<Integer, Method>();
+
+		try {
+			onOpen = myParent.getClass().getMethod("onOpen", new Class[] {});
+		} catch (Exception e) {
+			if (DEBUG)
+				System.out
+						.println(DEBUGTAG
+								+ "Dude, you shouldn't forget the \"onOpen()\" method!");
+		}
 	}
 
 	public void dispose() {
@@ -107,15 +118,15 @@ public class Pubsub implements WebSocketListener {
 	}
 
 	/**
-	 * Connect to a specified sub on a specified pubsub hub.
+	 * Connect to a specified sub on a specified pubsub hub & port.
 	 * 
 	 * @param url
 	 * @param port
 	 */
 	public void connect(String host, String port, String sub) {
 		if (DEBUG)
-			System.out.println("connect(" + host + ", " + port + ", " + sub
-					+ ")");
+			System.out.println(DEBUGTAG + "connect( ws://" + host + ":" + port
+					+ "/" + sub + " )");
 
 		mHost = host;
 		mPort = port;
@@ -124,7 +135,7 @@ public class Pubsub implements WebSocketListener {
 		if (!isConnected()) {
 			try {
 				mWebSocket = new WebSocket(URI.create("ws://" + mHost + ":"
-						+ mPort + "/" + mSub), WebSocket.Draft.DRAFT75,
+						+ mPort + "/" + mSub), WebSocket.Draft.DRAFT76,
 						"sample");
 				mWebSocket.addWebSocketListener(this);
 				mWebSocket.connect();
@@ -134,7 +145,8 @@ public class Pubsub implements WebSocketListener {
 			}
 		} else {
 			if (DEBUG)
-				System.out.println("Pubsub.io already connected, ignoring");
+				System.out.println(DEBUGTAG
+						+ "Pubsub.io already connected, ignoring");
 		}
 	}
 
@@ -158,18 +170,16 @@ public class Pubsub implements WebSocketListener {
 	public int subscribe(JSONObject json_filter, String method_callback) {
 		int callback_id = callbacks.size() + 1;
 
-		System.out.println("dEBUG: id = " + callback_id + "  method = "
-				+ method_callback);
-
 		// Create the method (TODO add some sort of check that it doesn't exist
 		// already)
 		Method m = null;
 		try {
 			m = myParent.getClass().getMethod(method_callback,
-					new Class[] { String.class });
+					new Class[] { JSONObject.class });
 		} catch (Exception e) {
 			if (DEBUG)
-				System.out.println(e.getMessage());
+				System.out.println(DEBUGTAG
+						+ "Ohnoes! Error creating method... " + e.getMessage());
 		}
 
 		// Add the callback
@@ -178,7 +188,8 @@ public class Pubsub implements WebSocketListener {
 		} else {
 			if (DEBUG)
 				System.out
-						.println("Faild to create "
+						.println(DEBUGTAG
+								+ "Failed to create "
 								+ method_callback
 								+ ". You'll probably not recieve anything from the hub, dude.");
 		}
@@ -195,6 +206,9 @@ public class Pubsub implements WebSocketListener {
 	 * @param handler_callback
 	 */
 	public void unsubscribe(Integer handler_callback) {
+		// Remove the handler callback
+		callbacks.remove(handler_callback);
+		// Send the un-subscribe message to the server
 		mWebSocket.send(PubsubParser.unsubscribe(handler_callback));
 	}
 
@@ -205,6 +219,16 @@ public class Pubsub implements WebSocketListener {
 	 */
 	public void publish(JSONObject json_doc) {
 		mWebSocket.send(PubsubParser.publish(json_doc));
+	}
+
+	/**
+	 * Don't use this method when using pubsub.io! Use
+	 * {@link #publish(JSONObject)} instead.
+	 * 
+	 * @param msg
+	 */
+	public void send(String msg) {
+		mWebSocket.send(msg);
 	}
 
 	/**
@@ -231,14 +255,16 @@ public class Pubsub implements WebSocketListener {
 	@Override
 	public void onMessage(JSONObject msg) {
 		if (DEBUG)
-			System.out.println(msg.toJSONString());
+			System.out.println(DEBUGTAG + msg.toJSONString());
 
-		int callback_id = (Integer) msg.get("id");
+		int callback_id = intValue((Long) msg.get("id"));
 		JSONObject doc = (JSONObject) msg.get("doc");
 
+		// Get the callback method
 		Method eventMethod = callbacks.get(callback_id);
 		if (eventMethod != null) {
 			try {
+				// Invoke only if the method existed
 				eventMethod.invoke(myParent, doc);
 			} catch (IllegalArgumentException e) {
 				e.printStackTrace();
@@ -250,8 +276,27 @@ public class Pubsub implements WebSocketListener {
 		}
 	}
 
+	public static int intValue(long value) {
+		int valueInt = (int) value;
+		if (valueInt != value) {
+			throw new IllegalArgumentException("The long value " + value
+					+ " is not within range of the int type");
+		}
+		return valueInt;
+	}
+
 	@Override
 	public void onOpen() {
+		if (onOpen != null)
+			try {
+				onOpen.invoke(myParent);
+			} catch (IllegalArgumentException e) {
+				e.printStackTrace();
+			} catch (IllegalAccessException e) {
+				e.printStackTrace();
+			} catch (InvocationTargetException e) {
+				e.printStackTrace();
+			}
 	}
 
 	@Override
@@ -260,6 +305,8 @@ public class Pubsub implements WebSocketListener {
 
 	@Override
 	public void onError(JSONObject msg) {
+		if (DEBUG)
+			System.out.println("Dude, there was an error..."
+					+ msg.toJSONString());
 	}
-
 }
