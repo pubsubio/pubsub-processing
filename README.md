@@ -7,12 +7,16 @@
 * TODO bullet list for installing the processing library in Processing IDE
 
 ## Getting started
+
 **Create the Pubsub object, this is used for connecting to a pubsub server and subscribing/publishing**
 
+``` java
 /* Standard instantiation of libraries in Processing */
 Pubsub hub = new Pubsub(this);
+```
 
-**Connect - there are three different ways of connecting to a hub.**
+**Connect**
+There are three different ways of connecting to a hub, the first two will automatically connect to the 
 
 ``` java
 /*
@@ -56,7 +60,7 @@ void mySubscription(JSONObject doc){
 }
 ```
 
-*Publish*
+**Publish**
 
 ``` java
 /*
