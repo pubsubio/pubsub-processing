@@ -14,23 +14,30 @@ Pubsub hub = new Pubsub(this);
 
 **Connect - there are three different ways of connecting to a hub.**
 
+``` java
 /*
  * Connect to the default sub at hub.pubsub.io
  */
 hub.connect();
+```
 
+``` java
 /*
  * Connect to a specific sub at hub.pubsub.io
  */
 hub.connect("processing");
+```
 
+``` java
 /*
  * Connect to a specific sub at a specific hub
  */
 hub.connect("127.0.0.1", "10000", "processing");
+```
  
 **Subscribe**
 
+``` java
 /*
  * All subscriptions must be done inside the "onOpen" method, and all subscriptions must be JSON formatted!
  */
@@ -47,9 +54,11 @@ void onOpen(){
 void mySubscription(JSONObject doc){
   println( doc );
 }
+```
 
 *Publish*
 
+``` java
 /*
  * Make sure not to publish anything before the hub is connected (when onOpen has been called!), otherwise your application might fail.
  */
@@ -60,3 +69,4 @@ void mousePressed(){
   doc.put("y", mouseY);
   hub.publish(doc);
 }
+```
