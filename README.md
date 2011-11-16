@@ -1,7 +1,7 @@
 # pubsub-processing
 
 ## Requirements
-*This library requires the JSON.simple library for encoding/decoding JSON messages.*
+* This library requires the [JSON.simple library](http://code.google.com/p/json-simple/) for encoding/decoding JSON messages.
 
 ## Install
 * TODO bullet list for installing the processing library in Processing IDE
