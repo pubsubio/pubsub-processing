@@ -36,22 +36,14 @@ import org.json.simple.JSONObject;
 import processing.core.PApplet;
 
 /**
- * This is a template class and can be used to start a new processing library or
- * tool. Make sure you rename this class as well as the name of the example
- * package 'template' to your own lobrary or tool naming convention.
  * 
- * @example Hello
- * 
- *          (the tag @example followed by the name of an example included in
- *          folder 'examples' will automatically include the example in the
- *          javadoc.)
- * 
+ * @author Andreas Goransson
+ *
  */
-
 public class Pubsub implements WebSocketListener {
 
 	private static final boolean DEBUG = true;
-	private static final String DEBUGTAG = "Pubsu-processing: ";
+	private static final String DEBUGTAG = "::pubsub-processing::: ";
 	public final static String VERSION = "##version##";
 
 	// myParent is a reference to the parent sketch
