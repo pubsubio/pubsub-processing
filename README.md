@@ -16,7 +16,8 @@ Pubsub hub = new Pubsub(this);
 ```
 
 **Connect**
-There are three different ways of connecting to a hub, the first two will automatically connect to the 
+
+There are three different ways of connecting to a hub, the first two will automatically connect to the pubsub.io hub.
 
 ``` java
 /*
