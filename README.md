@@ -1,10 +1,10 @@
 # pubsub-processing
 
 ## Requirements
-* This library requires the [JSON.simple library](http://code.google.com/p/json-simple/) for encoding/decoding JSON messages.
+* This library requires the [JSON-processing library](https://github.com/agoransson/JSON-processing) to be installed.
 
 ## Install
-* TODO bullet list for installing the processing library in Processing IDE
+* TODO bullet list for installing the processing library in Processing IDE.
 
 ## Getting started
 
@@ -50,14 +50,14 @@ void onOpen(){
   // Create the JSON formatted subscription
   JSONObject subscription = new JSONObject();
   // Register the subscription, this requires adding another method called "mySubscription"
-  hub.subscribe( subscription, "mySubscription");
+  hub.subscribe(subscription, "mySubscription");
 }
 
 /*
  * Method names are user-defined, must match the name set in the "hub.subscribe" method.
  */
 void mySubscription(JSONObject doc){
-  println( doc );
+  println(doc);
 }
 ```
 
@@ -65,13 +65,19 @@ void mySubscription(JSONObject doc){
 
 ``` java
 /*
- * Make sure not to publish anything before the hub is connected (when onOpen has been called!), otherwise your application might fail.
+ * Make sure not to publish anything before the hub is connected (when onOpen has been called!), otherwise your
+ * sketch might fail.
  */
 void mousePressed(){
   // Create the JSON formatted message that will be published
   JSONObject doc = new JSONObject();
-  doc.put("x", mouseX);
-  doc.put("y", mouseY);
+  try{
+    doc.put("x", mouseX);
+    doc.put("y", mouseY);
+  }catch(JSONException e){
+	println( e.getMessage() );
+  }
+  
   hub.publish(doc);
 }
 ```

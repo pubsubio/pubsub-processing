@@ -1,5 +1,6 @@
+import org.json.*;
+
 import pubsub.io.processing.*;
-import org.json.simple.JSONObject; // Might not need this one...
 
 Pubsub hub;
 
@@ -8,7 +9,9 @@ int subscription_id2 = 0;
 
 void setup() {
   hub = new Pubsub( this );
-  hub.connect( "echo.websocket.org", "80", "processing" );
+  hub.DEBUG = true;
+  //hub.setDraft(76);
+  hub.connect( "127.0.0.1", "10000", "processing" );
 }
 
 // Subscribe only when we've opened a connection!
@@ -17,10 +20,21 @@ void onOpen() {
   JSONObject mySubscription = new JSONObject();
   subscription_id = hub.subscribe( mySubscription, "mySubscription" );
 
-  JSONObject mySubscription2 = new JSONObject();
   JSONObject valuerange = new JSONObject();
-  valuerange.put("$gt", 50);
-  mySubscription2.put("x", valuerange);
+  try {
+    valuerange.put("$gt", 50);
+  }
+  catch(JSONException e) {
+    e.printStackTrace();
+  }
+
+  JSONObject mySubscription2 = new JSONObject();  
+  try {
+    mySubscription2.put("x", valuerange);
+  }
+  catch(JSONException e) {
+    e.printStackTrace();
+  }
   subscription_id2 = hub.subscribe( mySubscription2, "mySubscription2" );
 }
 
@@ -51,16 +65,31 @@ void mousePressed() {
   // Only used for testing against echo.websocket.org
   JSONObject msg = new JSONObject();
 
-  if (mouseButton == LEFT)
-    msg.put("id", subscription_id);
-  else
-    msg.put("id", subscription_id2);
+  try {
+    if (mouseButton == LEFT) {
+      msg.put("id", subscription_id);
+    }
+    else {
+      msg.put("id", subscription_id2);
+    }
+  }
+  catch(JSONException e) {
+    e.printStackTrace();
+  }
 
   JSONObject doc = new JSONObject();
-  doc.put( "x", mouseX );
-  doc.put( "y", mouseY );
-  msg.put("doc", doc );
+  try {
+    doc.put( "x", mouseX );
+    doc.put( "y", mouseY );
+  }
+  catch(JSONException e) {
+  }
 
+  try {
+    msg.put("doc", doc );
+  }
+  catch(JSONException e) {
+  }
   hub.send( msg.toString() );
 }
 

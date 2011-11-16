@@ -1,4 +1,4 @@
-<project name="ProcessingLibs" default="clean" basedir="../">
+<project name="pubsub-processing" default="clean" basedir="../">
 
     
 <!--	

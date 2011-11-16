@@ -2,7 +2,7 @@ package pubsub.io.processing;
 
 import java.util.EventObject;
 
-import org.json.simple.JSONObject;
+import org.json.JSONObject;
 
 public class WebSocketEvent extends EventObject {
 

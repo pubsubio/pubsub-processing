@@ -37,6 +37,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.text.ParseException;
 import java.util.Iterator;
 import java.util.Random;
 import java.util.Set;
@@ -44,10 +45,8 @@ import java.util.Vector;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  * The <tt>WebSocket</tt> is an implementation of WebSocket Client API, and
@@ -60,6 +59,8 @@ import org.json.simple.parser.ParseException;
  * @author Animesh Kumar
  */
 public class WebSocket implements Runnable {
+
+	private Vector WebSocketListeners;
 
 	/**
 	 * Enum for WebSocket Draft
@@ -207,8 +208,6 @@ public class WebSocket implements Runnable {
 
 	private final WebSocket instance;
 
-	private Vector WebSocketListeners;
-
 	/**
 	 * Constructor.
 	 * 
@@ -244,7 +243,6 @@ public class WebSocket implements Runnable {
 
 		this.instance = this;
 
-		WebSocketListeners = new Vector();
 	}
 
 	public void addWebSocketListener(WebSocketListener wsl) {
@@ -307,8 +305,6 @@ public class WebSocket implements Runnable {
 
 		selector = Selector.open();
 		socketChannel.register(selector, SelectionKey.OP_CONNECT);
-		System.out
-				.println("Starting a new thread to manage data reading/writing");
 
 		Thread th = new Thread(this);
 		th.start();
@@ -377,12 +373,12 @@ public class WebSocket implements Runnable {
 	 *            Message from websocket server
 	 */
 	public void onMessage(final String msg) {
-		JSONParser parser = new JSONParser();
-		Object obj = null;
+
+		JSONObject obj = null;
 		try {
-			obj = parser.parse(msg);
-		} catch (ParseException e) {
-			// e.printStackTrace();
+			obj = new JSONObject(msg);
+		} catch (JSONException e) {
+			e.printStackTrace();
 		}
 
 		if (obj != null) {
@@ -403,7 +399,11 @@ public class WebSocket implements Runnable {
 
 	public void onError(final Throwable t) {
 		JSONObject root = new JSONObject();
-		root.put("error", t);
+		try {
+			root.put("error", t);
+		} catch (JSONException e) {
+			e.printStackTrace();
+		}
 
 		createWebSocketEvent(WebSocketEvent.ON_ERROR, root);
 	}
@@ -516,8 +516,8 @@ public class WebSocket implements Runnable {
 		String origin = "*"; // TODO: Make 'origin' configurable
 		String request = "GET " + path + " HTTP/1.1\r\n"
 				+ "Upgrade: WebSocket\r\n" + "Connection: Upgrade\r\n"
-				+ "Host: " + host + "\r\n" + "Origin: " + origin + "\r\n";		
-		
+				+ "Host: " + host + "\r\n" + "Origin: " + origin + "\r\n";
+
 		// Add random keys for Draft76
 		if (this.draft == Draft.DRAFT76) {
 			request += "Sec-WebSocket-Key1: " + this._randomKey() + "\r\n";

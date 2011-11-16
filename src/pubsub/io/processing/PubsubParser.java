@@ -1,6 +1,7 @@
 package pubsub.io.processing;
 
-import org.json.simple.JSONObject;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  * Class for parsing pubsub.io messages, re-written for the Processing library.
@@ -18,11 +19,12 @@ public class PubsubParser {
 	 * @return
 	 * @throws JSONException
 	 */
-	public static String sub(String sub) {
+	public static String sub(String sub) throws JSONException {
 		JSONObject root = new JSONObject();
 		root.put("sub", sub);
 
-		return root.toJSONString();
+		System.out.println(root.toString());
+		return root.toString();
 	}
 
 	/**
@@ -33,7 +35,8 @@ public class PubsubParser {
 	 * @return
 	 * @throws JSONException
 	 */
-	public static String subscribe(JSONObject json_filter, int callback_id) {
+	public static String subscribe(JSONObject json_filter, int callback_id)
+			throws JSONException {
 
 		JSONObject root = new JSONObject();
 		root.put("name", "subscribe");
@@ -50,7 +53,7 @@ public class PubsubParser {
 	 * @return
 	 * @throws JSONException
 	 */
-	public static String unsubscribe(int handler_callback) {
+	public static String unsubscribe(int handler_callback) throws JSONException {
 
 		JSONObject root = new JSONObject();
 		root.put("name", "unsubscribe");
@@ -66,7 +69,7 @@ public class PubsubParser {
 	 * @return
 	 * @throws JSONException
 	 */
-	public static String publish(JSONObject doc) {
+	public static String publish(JSONObject doc) throws JSONException {
 
 		JSONObject root = new JSONObject();
 		root.put("name", "publish");

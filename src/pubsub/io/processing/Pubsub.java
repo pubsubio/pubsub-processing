@@ -28,21 +28,24 @@ package pubsub.io.processing;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.InetAddress;
+import java.net.Socket;
 import java.net.URI;
 import java.util.HashMap;
 
-import org.json.simple.JSONObject;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import processing.core.PApplet;
 
 /**
  * 
  * @author Andreas Goransson
- *
+ * 
  */
 public class Pubsub implements WebSocketListener {
 
-	private static final boolean DEBUG = true;
+	public static boolean DEBUG = false;
 	private static final String DEBUGTAG = "::pubsub-processing::: ";
 	public final static String VERSION = "##version##";
 
@@ -53,12 +56,16 @@ public class Pubsub implements WebSocketListener {
 	private String mPort;
 	private String mSub;
 
-	private WebSocket mWebSocket;
+	private Socket mSocket;
 	private boolean connected = false;
 
 	private Method onOpen;
 
 	private HashMap<Integer, Method> callbacks;
+
+	private int DRAFT = 75;
+
+	MyThread t;
 
 	/**
 	 * a Constructor, usually called in the setup() method in your sketch to
@@ -84,7 +91,7 @@ public class Pubsub implements WebSocketListener {
 	}
 
 	public void dispose() {
-		mWebSocket.close();
+		// mSocket.stop();
 	}
 
 	private void welcome() {
@@ -92,11 +99,21 @@ public class Pubsub implements WebSocketListener {
 	}
 
 	/**
+	 * Set the websocket draft, 75 (default) uses no sec-websocket-key's while
+	 * 76 does.
+	 * 
+	 * @param draft
+	 */
+	public void setDraft(int draft) {
+		DRAFT = (draft != 75 && draft != 76 ? 75 : draft);
+	}
+
+	/**
 	 * Connect to the default sub at hub.pubsub.io.
 	 */
 	public void connect() {
 		// connect("hub.pubsub.io", "10547", "/");
-		connect("79.125.4.43", "10547", "/");
+		connect("79.125.4.43", "10547", "");
 	}
 
 	/**
@@ -118,7 +135,7 @@ public class Pubsub implements WebSocketListener {
 	public void connect(String host, String port, String sub) {
 		if (DEBUG)
 			System.out.println(DEBUGTAG + "connect( ws://" + host + ":" + port
-					+ "/" + sub + " )");
+					+ "/" + sub + (sub.length() > 0 ? "/" : "") + " )");
 
 		mHost = host;
 		mPort = port;
@@ -126,11 +143,20 @@ public class Pubsub implements WebSocketListener {
 
 		if (!isConnected()) {
 			try {
-				mWebSocket = new WebSocket(URI.create("ws://" + mHost + ":"
-						+ mPort + "/" + mSub), WebSocket.Draft.DRAFT76,
-						"sample");
-				mWebSocket.addWebSocketListener(this);
-				mWebSocket.connect();
+				InetAddress addr = InetAddress.getByName(mHost);
+				mSocket = new Socket(addr, Integer.parseInt(mPort));
+				t = new MyThread(mSocket);
+				t.start();
+				t.addWebSocketListener(this);
+				// mWebSocket = new WebSocket(URI.create("ws://" + mHost + ":"
+				// + mPort + "/" + mSub + (sub.length() > 0 ? "/" : "")),
+				// (DRAFT == 75 ? WebSocket.Draft.DRAFT75
+				// : WebSocket.Draft.DRAFT76), "sample");
+				// mWebSocket.addWebSocketListener(this);
+				// mWebSocket.connect();
+				connected = true;
+				sub(mSub);
+				onOpen();
 			} catch (IOException e) {
 				e.printStackTrace();
 				connected = false;
@@ -148,7 +174,17 @@ public class Pubsub implements WebSocketListener {
 	 * @param sub
 	 */
 	public void sub(String sub) {
-		mWebSocket.send(PubsubParser.sub(sub));
+		// try {
+		// mSocket.send(PubsubParser.sub(sub));
+		// } catch (JSONException e) {
+		// e.printStackTrace();
+		// }
+		try {
+			t.write(PubsubParser.sub(sub).getBytes());
+		} catch (JSONException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
 	/**
@@ -187,7 +223,17 @@ public class Pubsub implements WebSocketListener {
 		}
 
 		// Send the message to the server to subscribe
-		mWebSocket.send(PubsubParser.subscribe(json_filter, callback_id));
+		// try {
+		// mWebSocket.send(PubsubParser.subscribe(json_filter, callback_id));
+		// } catch (JSONException e) {
+		// e.printStackTrace();
+		// }
+		try {
+			t.write(PubsubParser.subscribe(json_filter, callback_id).getBytes());
+		} catch (JSONException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 
 		return callback_id;
 	}
@@ -201,7 +247,17 @@ public class Pubsub implements WebSocketListener {
 		// Remove the handler callback
 		callbacks.remove(handler_callback);
 		// Send the un-subscribe message to the server
-		mWebSocket.send(PubsubParser.unsubscribe(handler_callback));
+		// try {
+		// mWebSocket.send(PubsubParser.unsubscribe(handler_callback));
+		// } catch (JSONException e) {
+		// e.printStackTrace();
+		// }
+		try {
+			t.write(PubsubParser.unsubscribe(handler_callback).getBytes());
+		} catch (JSONException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
 	/**
@@ -210,7 +266,17 @@ public class Pubsub implements WebSocketListener {
 	 * @param doc
 	 */
 	public void publish(JSONObject json_doc) {
-		mWebSocket.send(PubsubParser.publish(json_doc));
+		// try {
+		// mWebSocket.send(PubsubParser.publish(json_doc));
+		// } catch (JSONException e) {
+		// e.printStackTrace();
+		// }
+		try {
+			t.write(PubsubParser.publish(json_doc).getBytes());
+		} catch (JSONException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
 	/**
@@ -220,7 +286,8 @@ public class Pubsub implements WebSocketListener {
 	 * @param msg
 	 */
 	public void send(String msg) {
-		mWebSocket.send(msg);
+		// mWebSocket.send(msg);
+		t.write(msg.getBytes());
 	}
 
 	/**
@@ -247,14 +314,24 @@ public class Pubsub implements WebSocketListener {
 	@Override
 	public void onMessage(JSONObject msg) {
 		if (DEBUG)
-			System.out.println(DEBUGTAG + msg.toJSONString());
+			System.out.println(DEBUGTAG + msg.toString());
 
-		int callback_id = intValue((Long) msg.get("id"));
-		JSONObject doc = (JSONObject) msg.get("doc");
+		boolean docAndIdFound = true;
+
+		int callback_id = 0;
+		JSONObject doc = null;
+
+		try {
+			callback_id = msg.getInt("id");
+			doc = msg.getJSONObject("doc");
+		} catch (JSONException e) {
+			docAndIdFound = false;
+			// e.printStackTrace();
+		}
 
 		// Get the callback method
 		Method eventMethod = callbacks.get(callback_id);
-		if (eventMethod != null) {
+		if (eventMethod != null && docAndIdFound) {
 			try {
 				// Invoke only if the method existed
 				eventMethod.invoke(myParent, doc);
@@ -266,15 +343,6 @@ public class Pubsub implements WebSocketListener {
 				e.printStackTrace();
 			}
 		}
-	}
-
-	public static int intValue(long value) {
-		int valueInt = (int) value;
-		if (valueInt != value) {
-			throw new IllegalArgumentException("The long value " + value
-					+ " is not within range of the int type");
-		}
-		return valueInt;
 	}
 
 	@Override
@@ -298,7 +366,7 @@ public class Pubsub implements WebSocketListener {
 	@Override
 	public void onError(JSONObject msg) {
 		if (DEBUG)
-			System.out.println("Dude, there was an error..."
-					+ msg.toJSONString());
+			System.out.println(DEBUGTAG + "Dude, there was an error..."
+					+ msg.toString());
 	}
 }

@@ -1,6 +1,6 @@
 package pubsub.io.processing;
 
-import org.json.simple.JSONObject;
+import org.json.JSONObject;
 
 public interface WebSocketListener {
 
