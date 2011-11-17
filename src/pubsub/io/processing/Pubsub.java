@@ -57,15 +57,12 @@ public class Pubsub implements WebSocketListener {
 	private String mSub;
 
 	private Socket mSocket;
-	private boolean connected = false;
 
 	private Method onOpen;
 
 	private HashMap<Integer, Method> callbacks;
 
-	private int DRAFT = 75;
-
-	MyThread t;
+	private PubsubComm t;
 
 	/**
 	 * a Constructor, usually called in the setup() method in your sketch to
@@ -84,9 +81,8 @@ public class Pubsub implements WebSocketListener {
 			onOpen = myParent.getClass().getMethod("onOpen", new Class[] {});
 		} catch (Exception e) {
 			if (DEBUG)
-				System.out
-						.println(DEBUGTAG
-								+ "Dude, you shouldn't forget the \"onOpen()\" method!");
+				System.out.println(DEBUGTAG
+						+ "Dude, you shouldn't forget the \"onOpen()\" method!");
 		}
 	}
 
@@ -96,16 +92,6 @@ public class Pubsub implements WebSocketListener {
 
 	private void welcome() {
 		System.out.println("##name## ##version## by ##author##");
-	}
-
-	/**
-	 * Set the websocket draft, 75 (default) uses no sec-websocket-key's while
-	 * 76 does.
-	 * 
-	 * @param draft
-	 */
-	public void setDraft(int draft) {
-		DRAFT = (draft != 75 && draft != 76 ? 75 : draft);
 	}
 
 	/**
@@ -134,8 +120,8 @@ public class Pubsub implements WebSocketListener {
 	 */
 	public void connect(String host, String port, String sub) {
 		if (DEBUG)
-			System.out.println(DEBUGTAG + "connect( ws://" + host + ":" + port
-					+ "/" + sub + (sub.length() > 0 ? "/" : "") + " )");
+			System.out.println(DEBUGTAG + "connect( " + host + ":" + port + "/" + sub
+					+ " )");
 
 		mHost = host;
 		mPort = port;
@@ -145,26 +131,16 @@ public class Pubsub implements WebSocketListener {
 			try {
 				InetAddress addr = InetAddress.getByName(mHost);
 				mSocket = new Socket(addr, Integer.parseInt(mPort));
-				t = new MyThread(mSocket);
-				t.start();
+				t = new PubsubComm(mSocket);
 				t.addWebSocketListener(this);
-				// mWebSocket = new WebSocket(URI.create("ws://" + mHost + ":"
-				// + mPort + "/" + mSub + (sub.length() > 0 ? "/" : "")),
-				// (DRAFT == 75 ? WebSocket.Draft.DRAFT75
-				// : WebSocket.Draft.DRAFT76), "sample");
-				// mWebSocket.addWebSocketListener(this);
-				// mWebSocket.connect();
-				connected = true;
 				sub(mSub);
-				onOpen();
+				t.start();
 			} catch (IOException e) {
 				e.printStackTrace();
-				connected = false;
 			}
 		} else {
 			if (DEBUG)
-				System.out.println(DEBUGTAG
-						+ "Pubsub.io already connected, ignoring");
+				System.out.println(DEBUGTAG + "Pubsub.io already connected, ignoring");
 		}
 	}
 
@@ -174,23 +150,17 @@ public class Pubsub implements WebSocketListener {
 	 * @param sub
 	 */
 	public void sub(String sub) {
-		// try {
-		// mSocket.send(PubsubParser.sub(sub));
-		// } catch (JSONException e) {
-		// e.printStackTrace();
-		// }
 		try {
 			t.write(PubsubParser.sub(sub).getBytes());
 		} catch (JSONException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
 
 	/**
-	 * Subscribe to a filter, with a specified handler_callback, on the
-	 * connected sub. The handler_callback should be a declared constant, and it
-	 * should be used in the Handler of your activity!
+	 * Subscribe to a filter, with a specified handler_callback, on the connected
+	 * sub. The handler_callback should be a declared constant, and it should be
+	 * used in the Handler of your activity!
 	 * 
 	 * @param json_filter
 	 * @param handler_callback
@@ -206,8 +176,8 @@ public class Pubsub implements WebSocketListener {
 					new Class[] { JSONObject.class });
 		} catch (Exception e) {
 			if (DEBUG)
-				System.out.println(DEBUGTAG
-						+ "Ohnoes! Error creating method... " + e.getMessage());
+				System.out.println(DEBUGTAG + "Ohnoes! Error creating method... "
+						+ e.getMessage());
 		}
 
 		// Add the callback
@@ -215,23 +185,13 @@ public class Pubsub implements WebSocketListener {
 			callbacks.put(callback_id, m);
 		} else {
 			if (DEBUG)
-				System.out
-						.println(DEBUGTAG
-								+ "Failed to create "
-								+ method_callback
-								+ ". You'll probably not recieve anything from the hub, dude.");
+				System.out.println(DEBUGTAG + "Failed to create " + method_callback
+						+ ". You'll probably not recieve anything from the hub, dude.");
 		}
 
-		// Send the message to the server to subscribe
-		// try {
-		// mWebSocket.send(PubsubParser.subscribe(json_filter, callback_id));
-		// } catch (JSONException e) {
-		// e.printStackTrace();
-		// }
 		try {
 			t.write(PubsubParser.subscribe(json_filter, callback_id).getBytes());
 		} catch (JSONException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 
@@ -246,16 +206,9 @@ public class Pubsub implements WebSocketListener {
 	public void unsubscribe(Integer handler_callback) {
 		// Remove the handler callback
 		callbacks.remove(handler_callback);
-		// Send the un-subscribe message to the server
-		// try {
-		// mWebSocket.send(PubsubParser.unsubscribe(handler_callback));
-		// } catch (JSONException e) {
-		// e.printStackTrace();
-		// }
 		try {
 			t.write(PubsubParser.unsubscribe(handler_callback).getBytes());
 		} catch (JSONException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
@@ -266,15 +219,9 @@ public class Pubsub implements WebSocketListener {
 	 * @param doc
 	 */
 	public void publish(JSONObject json_doc) {
-		// try {
-		// mWebSocket.send(PubsubParser.publish(json_doc));
-		// } catch (JSONException e) {
-		// e.printStackTrace();
-		// }
 		try {
 			t.write(PubsubParser.publish(json_doc).getBytes());
 		} catch (JSONException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
@@ -286,7 +233,6 @@ public class Pubsub implements WebSocketListener {
 	 * @param msg
 	 */
 	public void send(String msg) {
-		// mWebSocket.send(msg);
 		t.write(msg.getBytes());
 	}
 
@@ -296,7 +242,7 @@ public class Pubsub implements WebSocketListener {
 	 * @return boolean
 	 */
 	private boolean isConnected() {
-		return connected;
+		return mSocket.isConnected();
 	}
 
 	/**

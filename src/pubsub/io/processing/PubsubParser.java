@@ -20,10 +20,10 @@ public class PubsubParser {
 	 * @throws JSONException
 	 */
 	public static String sub(String sub) throws JSONException {
+		
 		JSONObject root = new JSONObject();
 		root.put("sub", sub);
-
-		System.out.println(root.toString());
+		
 		return root.toString();
 	}
 
