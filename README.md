@@ -4,7 +4,9 @@
 * This library requires the [JSON-processing library](https://github.com/agoransson/JSON-processing) to be installed.
 
 ## Install
-* TODO bullet list for installing the processing library in Processing IDE.
+1. Download the [zip-archive](https://github.com/downloads/pubsubio/pubsub-processing/pubsub-0.1.1.zip)
+2. Extract the [zip-archive](https://github.com/downloads/pubsubio/pubsub-processing/pubsub-0.1.1.zip) to your /sketchbook/libraries/ folder.
+
 
 ## Getting started
 
