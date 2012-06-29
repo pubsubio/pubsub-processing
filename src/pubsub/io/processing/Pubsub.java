@@ -30,9 +30,9 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.net.URI;
 import java.util.HashMap;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -81,8 +81,9 @@ public class Pubsub implements WebSocketListener {
 			onOpen = myParent.getClass().getMethod("onOpen", new Class[] {});
 		} catch (Exception e) {
 			if (DEBUG)
-				System.out.println(DEBUGTAG
-						+ "Dude, you shouldn't forget the \"onOpen()\" method!");
+				System.out
+						.println(DEBUGTAG
+								+ "Dude, you shouldn't forget the \"onOpen()\" method!");
 		}
 	}
 
@@ -120,8 +121,8 @@ public class Pubsub implements WebSocketListener {
 	 */
 	public void connect(String host, String port, String sub) {
 		if (DEBUG)
-			System.out.println(DEBUGTAG + "connect( " + host + ":" + port + "/" + sub
-					+ " )");
+			System.out.println(DEBUGTAG + "connect( " + host + ":" + port + "/"
+					+ sub + " )");
 
 		mHost = host;
 		mPort = port;
@@ -140,7 +141,8 @@ public class Pubsub implements WebSocketListener {
 			}
 		} else {
 			if (DEBUG)
-				System.out.println(DEBUGTAG + "Pubsub.io already connected, ignoring");
+				System.out.println(DEBUGTAG
+						+ "Pubsub.io already connected, ignoring");
 		}
 	}
 
@@ -158,9 +160,9 @@ public class Pubsub implements WebSocketListener {
 	}
 
 	/**
-	 * Subscribe to a filter, with a specified handler_callback, on the connected
-	 * sub. The handler_callback should be a declared constant, and it should be
-	 * used in the Handler of your activity!
+	 * Subscribe to a filter, with a specified handler_callback, on the
+	 * connected sub. The handler_callback should be a declared constant, and it
+	 * should be used in the Handler of your activity!
 	 * 
 	 * @param json_filter
 	 * @param handler_callback
@@ -173,11 +175,11 @@ public class Pubsub implements WebSocketListener {
 		Method m = null;
 		try {
 			m = myParent.getClass().getMethod(method_callback,
-					new Class[] { JSONObject.class });
+					new Class[] { Object.class });
 		} catch (Exception e) {
 			if (DEBUG)
-				System.out.println(DEBUGTAG + "Ohnoes! Error creating method... "
-						+ e.getMessage());
+				System.out.println(DEBUGTAG
+						+ "Ohnoes! Error creating method... " + e.getMessage());
 		}
 
 		// Add the callback
@@ -185,8 +187,11 @@ public class Pubsub implements WebSocketListener {
 			callbacks.put(callback_id, m);
 		} else {
 			if (DEBUG)
-				System.out.println(DEBUGTAG + "Failed to create " + method_callback
-						+ ". You'll probably not recieve anything from the hub, dude.");
+				System.out
+						.println(DEBUGTAG
+								+ "Failed to create "
+								+ method_callback
+								+ ". You'll probably not recieve anything from the hub, dude.");
 		}
 
 		try {
@@ -227,6 +232,19 @@ public class Pubsub implements WebSocketListener {
 	}
 
 	/**
+	 * Publish a document to the connected sub.
+	 * 
+	 * @param doc
+	 */
+	public void publish(JSONArray json_doc) {
+		try {
+			t.write(PubsubParser.publish(json_doc).getBytes());
+		} catch (JSONException e) {
+			e.printStackTrace();
+		}
+	}
+
+	/**
 	 * Don't use this method when using pubsub.io! Use
 	 * {@link #publish(JSONObject)} instead.
 	 * 
@@ -242,7 +260,7 @@ public class Pubsub implements WebSocketListener {
 	 * @return boolean
 	 */
 	private boolean isConnected() {
-		return mSocket.isConnected();
+		return (mSocket != null ? mSocket.isConnected() : false);
 	}
 
 	/**
@@ -262,32 +280,47 @@ public class Pubsub implements WebSocketListener {
 		if (DEBUG)
 			System.out.println(DEBUGTAG + msg.toString());
 
-		boolean docAndIdFound = true;
-
 		int callback_id = 0;
-		JSONObject doc = null;
 
-		try {
-			callback_id = msg.getInt("id");
-			doc = msg.getJSONObject("doc");
-		} catch (JSONException e) {
-			docAndIdFound = false;
-			// e.printStackTrace();
-		}
+		callback_id = msg.getInt("id");
 
-		// Get the callback method
-		Method eventMethod = callbacks.get(callback_id);
-		if (eventMethod != null && docAndIdFound) {
-			try {
-				// Invoke only if the method existed
-				eventMethod.invoke(myParent, doc);
-			} catch (IllegalArgumentException e) {
-				e.printStackTrace();
-			} catch (IllegalAccessException e) {
-				e.printStackTrace();
-			} catch (InvocationTargetException e) {
-				e.printStackTrace();
+		if (msg.optJSONObject("doc") != null) {
+			JSONObject doc = msg.getJSONObject("doc");
+
+			// Get the callback method
+			Method eventMethod = callbacks.get(callback_id);
+			if (eventMethod != null ) {
+				try {
+					// Invoke only if the method existed
+					eventMethod.invoke(myParent, doc);
+				} catch (IllegalArgumentException e) {
+					e.printStackTrace();
+				} catch (IllegalAccessException e) {
+					e.printStackTrace();
+				} catch (InvocationTargetException e) {
+					e.printStackTrace();
+				}
 			}
+
+		} else if (msg.optJSONArray("doc") != null) {
+			JSONArray doc = msg.getJSONArray("doc");
+
+			// Get the callback method
+			Method eventMethod = callbacks.get(callback_id);
+			if (eventMethod != null ) {
+				try {
+					// Invoke only if the method existed
+					eventMethod.invoke(myParent, doc);
+				} catch (IllegalArgumentException e) {
+					e.printStackTrace();
+				} catch (IllegalAccessException e) {
+					e.printStackTrace();
+				} catch (InvocationTargetException e) {
+					e.printStackTrace();
+				}
+			}
+		} else {
+			// Neither...
 		}
 	}
 

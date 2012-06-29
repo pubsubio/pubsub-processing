@@ -1,5 +1,6 @@
 package pubsub.io.processing;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -78,4 +79,19 @@ public class PubsubParser {
 		return root.toString();
 	}
 
+	/**
+	 * Creates the "publish" message.
+	 * 
+	 * @param doc
+	 * @return
+	 * @throws JSONException
+	 */
+	public static String publish(JSONArray doc) throws JSONException {
+
+		JSONObject root = new JSONObject();
+		root.put("name", "publish");
+		root.put("doc", doc);
+
+		return root.toString();
+	}
 }

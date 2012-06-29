@@ -6,7 +6,6 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.util.Vector;
 
-import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
@@ -97,38 +96,32 @@ public class PubsubComm extends Thread {
 
 		StringBuffer mStringBuffer = new StringBuffer();
 
+		boolean doneReading = false;
+
 		// Keep listening to the InputStream while connected
 		while (true) {
 			try {
 				// Read from the InputStream
 				bytes = mInputStream.read(buffer);
 
-				if (bytes > 0) {
-					// Add the characters to the stringbuffer
-					mStringBuffer.append(new String(buffer, 0, bytes));
-
-					// Get all JSON messages!
-					while (hasNext(mStringBuffer)) {
-						// Get the next JSONObject
-						int[] startAndStop = getNext(mStringBuffer);
-						String next = mStringBuffer.substring(startAndStop[0],
-								startAndStop[1]);
-
-						// Process the JSON message
-						process(next);
-
-						// Delete the selected characters from the buffer.
-						mStringBuffer.delete(startAndStop[0], startAndStop[1]);
+				if (bytes > 2) {
+					if (buffer[bytes - 1] == -1) {
+						mStringBuffer.append(new String(buffer, 0, bytes));
+						doneReading = true;
+					} else {
+						mStringBuffer.append(new String(buffer, 0, bytes));
 					}
+				}
+
+				if (doneReading) {
+					process(mStringBuffer.toString());
+					mStringBuffer.setLength(0);
+					doneReading = false;
 				}
 			} catch (IOException e) {
 				// TODO, restart the thing if it failed?
 				JSONObject root = new JSONObject();
-				try {
-					root.put("error", e);
-				} catch (JSONException e1) {
-					e1.printStackTrace();
-				}
+				root.put("error", e);
 
 				createWebSocketEvent(WebSocketEvent.ON_ERROR, root);
 				break;
@@ -143,95 +136,29 @@ public class PubsubComm extends Thread {
 	 * @param next
 	 */
 	private void process(String json_formatted) {
-		JSONObject json_obj = null;
-		try {
-			json_obj = new JSONObject(json_formatted);
-		} catch (JSONException e) {
-			e.printStackTrace();
+		String[] json_strings = json_formatted.split("ÿ");
+
+		for( int i = 0; i < json_strings.length; i++ ){
+			JSONObject json_obj = null;
+			json_obj = new JSONObject(json_strings[i].trim());
+			if (json_obj != null)
+				createWebSocketEvent(WebSocketEvent.ON_MESSAGE, json_obj);
 		}
-
-		if (json_obj != null)
-			createWebSocketEvent(WebSocketEvent.ON_MESSAGE, json_obj);
-	}
-
-	/**
-	 * Detect if the StringBuffer has another JSON package inside it...
-	 * 
-	 * @param mStringBuffer
-	 * @return
-	 */
-	private boolean hasNext(StringBuffer mStringBuffer) {
-		int start = mStringBuffer.indexOf("{");
-		int end = -1;
-
-		if (start != -1) {
-			int starts = 1;
-			int ends = 0;
-
-			for (int i = 0; i < mStringBuffer.length(); i++) {
-
-				if (mStringBuffer.charAt(i) == '{') {
-					starts++;
-				} else if (mStringBuffer.charAt(i) == '}') {
-					ends++;
-					end = i + 1;
-				}
-
-				if (starts == ends)
-					break;
-			}
-		}
-
-		if (start != -1 && end != -1 && start < end)
-			return true;
-
-		return false;
-	}
-
-	private int[] getNext(StringBuffer mStringBuffer) {
-		int start = mStringBuffer.indexOf("{");
-		int end = -1;
-
-		if (start != -1) {
-			int starts = 1;
-			int ends = 0;
-
-			for (int i = 0; i < mStringBuffer.length(); i++) {
-
-				if (mStringBuffer.charAt(i) == '{') {
-					starts++;
-				} else if (mStringBuffer.charAt(i) == '}') {
-					ends++;
-					end = i + 1;
-				}
-
-				if (starts == ends)
-					break;
-			}
-		}
-
-		if (start != -1 && end != -1)
-			return new int[] { start, end };
-
-		return null;
 	}
 
 	/**
 	 * Write to the connected OutStream.
 	 * 
 	 * @param buffer
-	 *          The bytes to write
+	 *            The bytes to write
 	 */
 	public void write(byte[] buffer) {
 		try {
 			mOutputStream.write(attachHeaderAndFooter(buffer));
 		} catch (IOException e) {
 			JSONObject root = new JSONObject();
-			try {
-				root.put("error", e);
-			} catch (JSONException e1) {
-				e1.printStackTrace();
-			}
+
+			root.put("error", e);
 
 			createWebSocketEvent(WebSocketEvent.ON_ERROR, root);
 		}
@@ -242,11 +169,7 @@ public class PubsubComm extends Thread {
 			mSocket.close();
 		} catch (IOException e) {
 			JSONObject root = new JSONObject();
-			try {
-				root.put("error", e);
-			} catch (JSONException e1) {
-				e1.printStackTrace();
-			}
+			root.put("error", e);
 
 			createWebSocketEvent(WebSocketEvent.ON_ERROR, root);
 		}
@@ -254,8 +177,8 @@ public class PubsubComm extends Thread {
 	}
 
 	/**
-	 * This adds the required header and footer for the package, without them the
-	 * hub won't recognize the message.
+	 * This adds the required header and footer for the package, without them
+	 * the hub won't recognize the message.
 	 * 
 	 * @param buffer
 	 * @return
